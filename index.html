@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Sistema Impossível</title>
+    <style>
+        :root {
+            --primary: #007bff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --bg: #121212;
+            --panel: #1e1e1e;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: var(--panel);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+        }
+
+        .screen { display: none; }
+        .active { display: block; }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #252525;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-green { background: var(--success); color: white; }
+        
+        #error-msg {
+            color: var(--danger);
+            font-size: 0.8rem;
+            margin-top: 5px;
+            min-height: 1.2rem;
+        }
+
+        #flee-button {
+            position: absolute;
+            width: auto;
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: yellow;
+            animation: fall 3s linear infinite;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="game-container">
+        <div id="screen-login" class="screen active">
+            <h2>Acesso ao Sistema</h2>
+            <label>Usuário</label>
+            <input type="text" id="username" value="Player_123" disabled>
+            
+            <label>Senha (não é uma senha real)</label>
+            <input type="password" id="pass-field" placeholder="********" disabled>
+            
+            <div id="error-msg"></div>
+
+            <button id="btn-create" class="btn-blue">Criar senha</button>
+            <button id="btn-continue" class="btn-green" style="display:none;">Continuar</button>
+        </div>
+
+        <div id="screen-confirm" class="screen">
+            <h2>Confirme sua Senha</h2>
+            <p>Digite exatamente o que criou:</p>
+            <input type="password" id="pass-confirm" placeholder="********">
+            <div id="error-confirm" style="color:var(--danger)"></div>
+            <button onclick="validateConfirmation()" class="btn-green">Verificar</button>
+        </div>
+
+        <div id="screen-quiz" class="screen">
+            <h2 id="quiz-title">Quiz de Segurança</h2>
+            <p id="no-search" style="font-size: 0.7rem; color: yellow;">AVISO: NÃO PESQUISE NO GOOGLE!</p>
+            <p id="quiz-question"></p>
+            <input type="text" id="quiz-answer" placeholder="Sua resposta">
+            <button onclick="checkQuiz()" class="btn-blue">Enviar Resposta</button>
+            <p id="attempts-count" style="font-size: 0.7rem; margin-top: 10px;"></p>
+        </div>
+
+        <div id="screen-flee" class="screen">
+            <h3 id="flee-status">Clique para confirmar</h3>
+            <button id="flee-button" class="btn-green">CLIQUE AQUI PARA CONFIRMAR A SENHA</button>
+        </div>
+
+        <div id="screen-loading" class="screen">
+            <h2 id="loading-text">Você entrou :></h2>
+            <div id="loading-subtext"></div>
+        </div>
+
+        <div id="screen-end" class="screen">
+            <h1 style="color: var(--success);">ACESSO CONCEDIDO</h1>
+            <p>Agora você pode jogar 😈</p>
+            <div style="border: 2px dashed #444; padding: 20px;">
+                [ MINI GAME LIBERADO: TENTE CLICAR NO QUADRADO ]
+                <div style="width: 50px; height: 50px; background: red; margin: 20px auto; cursor: crosshair;" onclick="alert('Você venceu o jogo!')"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ESTADO GLOBAL
+        let attempts = 0;
+        let trollLevel = 0;
+        let createdPassword = "";
+        let fleeClicks = 0;
+        let loopCount = 0;
+
+        const questions = [
+            { q: "Qual a raiz quadrada de 14566129?", a: "3816.56" },
+            { q: "Em que ano o primeiro computador pesando 30 toneladas foi ligado?", a: "1945" },
+            { q: "Qual o nome do criador da linguagem C++?", a: "Bjarne Stroustrup" }
+        ];
+        let currentQuestion = null;
+
+        // --- LÓGICA TELA 1 & 2 ---
+        const btnCreate = document.getElementById('btn-create');
+        const btnContinue = document.getElementById('btn-continue');
+        const passField = document.getElementById('pass-field');
+        const errorMsg = document.getElementById('error-msg');
+
+        btnCreate.addEventListener('click', () => {
+            passField.disabled = false;
+            btnCreate.style.display = 'none';
+            btnContinue.style.display = 'block';
+        });
+
+        btnContinue.addEventListener('click', () => {
+            const val = passField.value;
+            
+            // Validação 1: Tamanho
+            if (val.length < 8) {
+                trollLevel++;
+                if (trollLevel === 1) errorMsg.innerText = "Tem que ter mais de 8 caracteres";
+                else if (trollLevel === 2) errorMsg.innerText = "Tem que ter mais de 8 caracteres!!";
+                else if (trollLevel === 3) errorMsg.innerText = "TEM QUE TER MAIS DE 8 CARACTERES!!!";
+                else errorMsg.innerText = "TEM QUE TER MAIS DE 8 CARACTERES ESCUTOU NN";
+                return;
+            }
+
+            // Validação 2: Número
+            if (!/\d/.test(val)) {
+                errorMsg.innerText = "Pelo menos 1 número é necessário";
+                return;
+            }
+
+            // Validação 3: Especial
+            if (!/[!@#$%^&*(),.?":{}|<>]/.test(val)) {
+                errorMsg.innerText = "Pelo menos 1 caractere especial (!@#...)";
+                return;
+            }
+
+            createdPassword = val;
+            showScreen('screen-confirm');
+        });
+
+        // --- LÓGICA TELA 3 ---
+        function validateConfirmation() {
+            const confirmVal = document.getElementById('pass-confirm').value;
+            if (confirmVal !== createdPassword) {
+                document.getElementById('error-confirm').innerText = "Senhas não conferem! Tente novamente do zero.";
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                startQuiz();
+            }
+        }
+
+        // --- LÓGICA TELA 4 ---
+        function startQuiz() {
+            showScreen('screen-quiz');
+            currentQuestion = questions[Math.floor(Math.random() * questions.length)];
+            document.getElementById('quiz-question').innerText = currentQuestion.q;
+            document.getElementById('attempts-count').innerText = "Tentativas: " + attempts;
+        }
+
+        function checkQuiz() {
+            const ans = document.getElementById('quiz-answer').value;
+            if (ans.toLowerCase() === currentQuestion.a.toLowerCase()) {
+                showScreen('screen-flee');
+            } else {
+                attempts++;
+                alert("ERROU! Voltando ao início...");
+                showScreen('screen-login');
+                resetFirstStep();
+            }
+        }
+
+        // --- LÓGICA TELA 5 ---
+        const fleeBtn = document.getElementById('flee-button');
+        fleeBtn.addEventListener('click', () => {
+            fleeClicks++;
+            document.getElementById('flee-status').innerText = "Erro " + fleeClicks;
+            
+            if (fleeClicks >= 100) {
+                startLoop();
+                return;
+            }
+
+            // Move o botão
+            const container = document.getElementById('game-container');
+            const maxX = container.clientWidth - fleeBtn.clientWidth;
+            const maxY = container.clientHeight - fleeBtn.clientHeight;
+            
+            fleeBtn.style.left = Math.random() * maxX + "px";
+            fleeBtn.style.top = Math.random() * maxY + "px";
+            
+            // Diminui tamanho
+            const currentSize = 100 - (fleeClicks * 0.8);
+            fleeBtn.style.transform = `scale(${currentSize/100})`;
+        });
+
+        // --- LÓGICA TELA 6 (LOOP) ---
+        function startLoop() {
+            showScreen('screen-loading');
+            loopCount++;
+
+            if (loopCount < 50) {
+                setTimeout(() => {
+                    document.getElementById('loading-subtext').innerText = "oi… será que não…";
+                }, 3000);
+
+                setTimeout(() => {
+                    startQuiz(); // Volta pro quiz
+                    document.getElementById('loading-subtext').innerText = "";
+                }, 5000);
+            } else {
+                showFinal();
+            }
+        }
+
+        // --- FINAL VERDADEIRO ---
+        function showFinal() {
+            document.getElementById('loading-text').innerText = "Você entrou :>";
+            createConfetti();
+            
+            // Simular música (Beep)
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+            oscillator.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 2);
+
+            setTimeout(() => {
+                document.getElementById('loading-subtext').innerText = "Carregando...";
+            }, 2000);
+
+            setTimeout(() => {
+                showScreen('screen-end');
+            }, 10000);
+        }
+
+        // AUXILIARES
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function resetFirstStep() {
+            trollLevel = 0;
+            passField.value = "";
+            passField.disabled = true;
+            btnCreate.style.display = 'block';
+            btnContinue.style.display = 'none';
+            errorMsg.innerText = "";
+        }
+
+        function createConfetti() {
+            for(let i=0; i<50; i++) {
+                const c = document.createElement('div');
+                c.className = 'confetti';
+                c.style.left = Math.random() * 100 + "vw";
+                c.style.backgroundColor = `hsl(${Math.random()*360}, 100%, 50%)`;
+                c.style.animationDelay = Math.random() * 2 + "s";
+                document.body.appendChild(c);
+            }
+        }
+    </script>
+</body>
+  </html>
+              
